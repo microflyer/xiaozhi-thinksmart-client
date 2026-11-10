@@ -451,3 +451,13 @@ body[data-state="listening"] .mic-ring { opacity: .75; }
 .w-msg.bad { color: var(--bad); } .w-msg.ok { color: var(--ok); }
 .w-spin { width: 22px; height: 22px; border-radius: 50%; border: 3px solid #ffffff22; border-top-color: var(--accent2); animation: wspin .8s linear infinite; }
 .w-actions { display: flex; gap: 16px; }
+
+/* ---- camera: the home-page button opens this over the orb; close returns to the same page ---- */
+#btnCamera[hidden] { display: none; }
+.cam { position: fixed; z-index: 32; inset: 0; display: none; background: #000; }
+.cam.on { display: block; }
+.cam img { width: 100%; height: 100%; object-fit: contain; background: #000; }
+.cam .close { position: absolute; top: 24px; right: 24px; z-index: 2; background: #00000088; }
+.cam-msg { position: absolute; left: 48px; right: 48px; top: 46%; margin: 0; text-align: center; font-size: 28px; color: #fff; }
+.cam-msg:empty { display: none; }
+.cam-msg.bad { color: #ffd0d8; }

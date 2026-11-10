@@ -46,6 +46,9 @@ DEFAULTS = {
     'alarm_volume': 70,   # countdowns, alarms and reminders ring at this, whatever the device volume (alarms.py)
     'alarm_tone': 'coffee',   # alarms.TONES
     'bluetooth': True,    # the Bluetooth speaker switch (bt.py): off powers the adapter down
+    # ONVIF camera on the home page (camera.py). No host: the button stays hidden.
+    # The password stays in this file on the device; the page never receives it.
+    'camera': {'host': '', 'onvif_port': 80, 'user': '', 'password': ''},
 }
 
 

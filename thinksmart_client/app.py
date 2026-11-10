@@ -17,7 +17,8 @@ States shown to the page: idle, connecting, listening, thinking, speaking.
   its recent part, so the page's threads survive a closed connection and a restart: they are loaded
   from the hub (/kiosk/chat/history) when not connected. Clearing them (settings, or saying
   "清除聊天记录") clears the hub's copy too.
-- The screen stays on while not idle and blanks after the user's screen-off (device.Screen); the volume
+- The screen stays on while not idle and while the camera is open, and blanks after the user's
+  screen-off (device.Screen); the volume
   keys and the mic-mute switch are handled here too (device.Keys).
 - Reports (Grok Bot finishing later) are polled from the hub: when idle the client chimes and
   connects so the hub reads them; in the sleep hours (sleep.py) they wait on the screen and the
@@ -42,7 +43,7 @@ from pathlib import Path
 import aiohttp
 import numpy as np
 
-from . import alarms, bt, config, mcp, sleep, update, wake_verify
+from . import alarms, bt, camera, config, mcp, sleep, update, wake_verify
 from .audio import OUT_RATE, Audio, load_wav
 from .device import DIM_LEVEL, Keys, Screen, normalize_screen_off
 from .hub import Hub
@@ -357,7 +358,12 @@ class Client:
 
     def snapshot(self):
         return {'status': self.status(), 'models': self.models, 'alarms': self.alarm_view(), 'bluetooth': self.bt.view(),
+                'camera': camera.configured(self.cfg),
                 'thread': {'entry': self.view_entry(), 'messages': self.threads.get(self.view_entry(), [])}}
+
+    def show_camera(self, open_):
+        """The model asked to show or hide the camera. The page does the opening."""
+        return camera.show(self.cfg, self.events.publish, self.screen.poke, open_)
 
     def view_entry(self):
         cur = self.models.get('current')

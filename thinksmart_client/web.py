@@ -5,8 +5,9 @@ import logging
 import time
 
 from aiohttp import web
+from aiohttp.client_exceptions import ClientConnectionError
 
-from . import __version__, update
+from . import __version__, camera, update
 from .app import ROOT, Client, local_ip
 
 log = logging.getLogger(__name__)
@@ -162,6 +163,27 @@ def make_app(client: Client):
         return web.json_response({'ok': update.request('install', str(body.get('version') or ''),
                                                        str(body.get('system') or ''))})
 
+    relay = camera.Relay(getattr(client.screen, 'watch', lambda on: None), lambda: camera.resolve(client.cfg))
+
+    async def camera_live(request):
+        try:
+            sub = await relay.open()
+        except camera.CameraError as e:
+            return web.json_response({'ok': False, 'error': str(e)}, status=502)
+        resp = web.StreamResponse(headers={'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store'})
+        try:
+            await resp.prepare(request)
+            while True:
+                chunk = await sub.queue.get()
+                if not chunk:
+                    break
+                await resp.write(chunk)
+        except (ConnectionResetError, asyncio.CancelledError, ClientConnectionError):
+            pass
+        finally:
+            await relay.close(sub)
+        return resp
+
     watchers = []   # keeps the task referenced
 
     async def watch_updates(_app):
@@ -193,6 +215,7 @@ def make_app(client: Client):
     app.router.add_post('/api/history/clear', clear_history)
     app.router.add_post('/api/bluetooth', bluetooth)
     app.router.add_get('/api/health', health)
+    app.router.add_get('/api/camera/live', camera_live)
     app.router.add_get('/api/network', network)
     app.router.add_post('/api/power-off', power_off)
     app.router.add_post('/api/update/check', update_check)

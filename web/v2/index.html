@@ -43,6 +43,10 @@
       </div>
       <div class="link" id="link"><i></i><span>待机</span></div>
       <div class="clock" id="clock"><span id="time">--:--</span></div>
+      <button class="gear" id="btnCamera" aria-label="摄像头" hidden>
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2.5" y="7" width="12" height="10" rx="2"/><path d="M14.5 10.2 21 7.2v9.6l-6.5-3z"/></svg>
+      </button>
       <button class="gear" id="btnSettings" aria-label="设置"><i class="gear-dot" id="gearDot"></i>
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg>
@@ -277,6 +281,13 @@
   </section>
 </div>
 
+<div class="cam" id="cam">
+  <img id="camImg" alt="">
+  <button class="close" id="camClose" aria-label="关闭">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
+  <p class="cam-msg" id="camMsg"></p>
+</div>
 <div class="ring" id="ring">
   <svg class="ring-bell" width="96" height="96" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
     <path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/></svg>

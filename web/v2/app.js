@@ -1230,6 +1230,7 @@ const handlers = {
     if (s.update) { ui.version = s.version; ui.update = s.update; }   // the demo's snapshots have none
     if (s.alarms) ui.alarms = s.alarms;
     if (s.bluetooth) ui.bluetooth = s.bluetooth;
+    if ('camera' in s) $('btnCamera').hidden = !s.camera;
     renderModels(); renderThread(); renderStatus(); renderAlarms(); renderBluetooth();
     updateFinished((s.update || {}).job);
   },
@@ -1269,6 +1270,13 @@ const handlers = {
   bluetooth(b) {
     ui.bluetooth = b; renderBluetooth();
   },
+  camera(c) {
+    if (!(c && c.open)) { closeCamera(); return; }
+    const failed = $('cam').classList.contains('on') && $('camMsg').classList.contains('bad');
+    if ($('cam').classList.contains('on') && !failed) return;
+    if (failed) closeCamera();
+    openCamera();
+  },
   level(l) {
     level.target = ui.status.state === 'speaking' ? Math.min(1, l.out * 6) : micLevel(l.mic);
   },
@@ -1277,6 +1285,86 @@ const handlers = {
 function connectEvents() {
   const es = new EventSource('/events');
   for (const [name, fn] of Object.entries(handlers)) es.addEventListener(name, e => fn(JSON.parse(e.data)));
+}
+
+/* ---- camera: ONVIF stream, drawn as JPEG frames (camera.py). This WebKit cannot play H.264. ---- */
+let camAbort = null, camBlob = '';
+function camShow(text, bad) {
+  const el = $('camMsg');
+  el.textContent = text || '';
+  el.classList.toggle('bad', !!bad);
+}
+function showFrame(jpeg) {
+  const url = URL.createObjectURL(new Blob([jpeg], { type: 'image/jpeg' }));
+  const img = $('camImg');
+  const prev = camBlob;
+  camBlob = url;
+  img.onload = () => { if (prev) URL.revokeObjectURL(prev); camShow(''); };
+  img.src = url;
+}
+// JPEGs are concatenated. Entropy stores a literal 0xFF as FF 00, so FF D8 / FF D9 are real markers.
+function takeJpeg(buf) {
+  let start = -1;
+  for (let i = 0; i + 1 < buf.length; i++) {
+    if (buf[i] !== 0xff) continue;
+    if (buf[i + 1] === 0xd8 && start < 0) start = i;
+    else if (buf[i + 1] === 0xd9 && start >= 0) return [start, i + 2];
+  }
+  return null;
+}
+async function playCamera(body, signal) {
+  let buf = new Uint8Array(0);
+  const reader = body.getReader();
+  while (true) {
+    if (signal.aborted) throw new DOMException('aborted', 'AbortError');
+    const got = await reader.read();
+    if (got.done) return;
+    const merged = new Uint8Array(buf.length + got.value.length);
+    merged.set(buf); merged.set(got.value, buf.length);
+    buf = merged;
+    let span = takeJpeg(buf);
+    while (span) {
+      showFrame(buf.slice(span[0], span[1]));
+      buf = buf.slice(span[1]);
+      span = takeJpeg(buf);
+    }
+    if (buf.length > 2 * 1024 * 1024) {
+      const soi = buf.length > 1 ? buf.lastIndexOf(0xff) : -1;
+      buf = soi > 0 ? buf.slice(soi) : new Uint8Array(0);
+    }
+  }
+}
+async function openCamera() {
+  if ($('cam').classList.contains('on')) return;
+  $('cam').classList.add('on');
+  camShow('正在连接摄像头…');
+  const ctrl = new AbortController();
+  camAbort = ctrl;
+  try {
+    const res = await fetch('/api/camera/live', { signal: ctrl.signal, cache: 'no-store' });
+    if (!res.ok || !res.body) {
+      let msg = '连不上摄像头';
+      try { msg = (await res.json()).error || msg; } catch (e) {}
+      if (camAbort === ctrl) camShow(msg, true);
+      return;
+    }
+    await playCamera(res.body, ctrl.signal);
+    if (camAbort === ctrl) camShow('摄像头断开了', true);
+  } catch (e) {
+    if (e.name === 'AbortError' || camAbort !== ctrl) return;
+    camShow('摄像头断开了', true);
+  }
+}
+function closeCamera() {
+  const ctrl = camAbort;
+  camAbort = null;
+  if (ctrl) ctrl.abort();
+  const img = $('camImg');
+  img.onload = null;
+  img.removeAttribute('src');
+  if (camBlob) { URL.revokeObjectURL(camBlob); camBlob = ''; }
+  $('cam').classList.remove('on');
+  camShow('');
 }
 
 /* ---- buttons ---- */
@@ -1320,6 +1408,8 @@ function release() {
 $('btnMic').addEventListener('pointerup', release);
 $('btnMic').addEventListener('pointercancel', release);
 $('btnMic').addEventListener('pointerleave', () => { if (ui.ptt) release(); });
+$('btnCamera').addEventListener('click', openCamera);
+$('camClose').addEventListener('click', closeCamera);
 $('btnAbort').addEventListener('click', () => post('/api/abort'));
 $('btnEnd').addEventListener('click', () => { post('/api/end'); toast('对话已结束，聊天记录已保存'); });
 $('modelPill').addEventListener('click', () => openSheet(true));

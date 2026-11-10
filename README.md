@@ -16,13 +16,14 @@
 | `thinksmart_client/wake_verify.py` | 唤醒二次确认（默认关，`wake_verify: 'hub'` 打开）：命中后把最近 3 秒交给网关识别（`POST /kiosk/asr`），按拼音比对唤醒词；`pinyin.txt` 是它用的常用字拼音表（`eval/wake/make_pinyin.py` 生成） |
 | `eval/wake/` | 唤醒评测：漏唤醒率、误唤醒率，见其中 README |
 | `thinksmart_client/hub.py` | 小智 WebSocket 协议（hello 只声明 `mcp`：不让网关一听到声音就打断回复） |
-| `thinksmart_client/mcp.py` | 给模型用的设备工具：音量、睡眠时段、屏幕亮度、倒计时/闹钟/提醒（新建、查看、取消、再睡）、闹钟音量 |
+| `thinksmart_client/mcp.py` | 给模型用的设备工具：音量、睡眠时段、屏幕亮度、打开/关闭摄像头、倒计时/闹钟/提醒（新建、查看、取消、再睡）、闹钟音量 |
 | `thinksmart_client/alarms.py` | 倒计时、闹钟、提醒（共用一种数据，可循环：每天、工作日、每周几、每月几号）：模型只传意思，几点由这里算；存在 `~/.local/share/thinksmart-client/alarms/`（临时文件 + fsync + 改名，防断电）；系统对时前不判断；关机错过不到 1 小时的开机补响一次；闹钟和倒计时没人停就响 10 分钟，提醒是短钢琴和弦加念内容、反复 3 分钟；错过的显示在首页，点「知道了」清掉；铃声 5 选 1：钢琴曲「咖啡时光」（默认）「晨曦」「元气早晨」「阳光小跳跃」和程序合成的木琴 |
 | `thinksmart_client/device.py` | 屏幕和按键：给系统熄屏程序写提示（对话中不熄屏、用户设的自动熄屏（1/3/5/10/30 分钟或不熄，默认 5 分钟，触摸和对话结束都按它）、唤醒词亮屏、睡眠时段调暗、用户设的亮度 0-100），读音量键和麦克风开关 |
 | `thinksmart_client/sleep.py` | 睡眠时段（可跨午夜）：回复音量减半、屏幕调暗、补报不主动念；设置存在用户配置里（`config.save`），页面设置页和语音工具都能改 |
 | `thinksmart_client/bt.py`、`bt_helper.py` | 蓝牙音箱：手机配对后把歌放到设备上。`bt_helper.py` 用系统自带的 python3（dbus、GLib）管 BlueZ：配对代理（免密码，只在设置页点了「添加手机」后的 3 分钟内接受，配过的手机设为信任、以后点一下就重连）、开关、忘记手机、闹钟响时让手机暂停；`bt.py` 在手机推流时用 `pw-record` 录它的音源，混进 `audio.Background`（和回复相加后送喇叭，回声消除知道它，放歌时照样能唤醒）；对话时压到 20%、闹钟响或试听铃声时静音。需要系统层的 `bluetooth/` 配置（手机的声音变成音源而不是直接送喇叭）；没有时手机照样能放，但声音绕过客户端，放歌时很难唤醒，设置页会提示 |
 | `thinksmart_client/opus.py` | 系统 libopus 的 ctypes 封装 |
 | `thinksmart_client/web.py` | 页面、事件流（SSE）、按钮接口 |
+| `thinksmart_client/camera.py` | 首页摄像头：ONVIF 取较低分辨率的那路，ffmpeg 收成 JPEG 给页面，关掉就停 |
 | `web/` | 界面（设置页里的 WiFi 由展示屏外壳执行：页面通过 WebKit 的 `thinksmart` 消息通道请外壳扫描、连接、忘记网络，和系统镜像欢迎页同一套代码；输入框用外壳注入的系统键盘；外壳太旧时卡片只提示）：正式版是 `v2/`（带表情的光球，首页 `/` 和 `/v2`），第一版 `index.html`、`app.css`、`app.js` 留在 `/v1`；`test/` 是 GPU 排查用的测试页；另有提示音、厂商图标 |
 | `models/kws-zh/` | 唤醒词模型 |
 | `deploy/thinksmart-client.service` | 系统服务 |
@@ -30,7 +31,8 @@
 
 ## 接口（只监听本机）
 
-- `GET /events`：事件流，`snapshot`、`state`、`message`、`thread`、`model`、`level`、`toast`、`volume`（`source`：`key`/`voice`/`page`；`ring` 为 true 是响铃时音量键调的这一次铃声）、`alarms`（列表、错过的、是否对过时、正在响的、闹钟音量和铃声）、`bluetooth`（见 `/api/bluetooth`）
+- `GET /events`：事件流，`snapshot`、`state`、`message`、`thread`、`model`、`level`、`toast`、`volume`（`source`：`key`/`voice`/`page`；`ring` 为 true 是响铃时音量键调的这一次铃声）、`alarms`（列表、错过的、是否对过时、正在响的、闹钟音量和铃声）、`bluetooth`（见 `/api/bluetooth`）。`snapshot` 里的 `camera` 为 true 时首页有摄像头按钮
+- `GET /api/camera/live`：摄像头实时画面。用 ONVIF 取分辨率较低的那路，ffmpeg 收成一帧帧 JPEG 给页面（这块 WebKit 的媒体源不播 H.264；这台摄像头 ONVIF 写着 H.264，实际是 HEVC）。关掉页面就断开。账号在用户配置 `camera`（`host`、`onvif_port`、`user`、`password`），页面拿不到密码。没配置 `host` 时按钮不出现。看的时候屏幕不熄
 - `POST /api/wake`、`/api/end`、`/api/abort`、`/api/ptt/start`、`/api/ptt/stop`
 - `POST /api/text {"text": "..."}`：文字提问（服务端按识别出的话处理）
 - `POST /api/model {"kind": "...", "vendor": "..."}`：切换模型（转给服务端的 `/kiosk/llm/use`）

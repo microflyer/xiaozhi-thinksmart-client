@@ -31,6 +31,21 @@ def test_normalize():
             device.normalize_screen_off(None, {'minutes': bad})
 
 
+def test_watching_the_camera_holds_the_screen_on_its_own(hint):
+    s = device.Screen()
+    s.release()
+    s.watch(True)
+    assert hint()['hold'] and 'after' not in hint()
+    s.release()                       # the conversation ending must not blank the picture
+    assert hint()['hold']
+    s.watch(False)
+    assert not hint()['hold']
+    s.hold()
+    s.watch(True)
+    s.watch(False)                    # closing the picture during a conversation leaves it held
+    assert hint()['hold']
+
+
 def test_the_hint_carries_the_users_screen_off(hint):
     s = device.Screen()
     s.blank_after(180)
