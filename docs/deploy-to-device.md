@@ -67,13 +67,9 @@ journalctl -u thinksmart-client -n 30 --no-pager -o cat
 
 ## 摄像头账号
 
-程序文件里没有账号。账号在设备上的 `~/.config/thinksmart-client/config.json`，键是 `camera`：
+程序文件里没有账号。部署时从仓库里的 `deploy/camera.local.json` 读取，再写到设备上的 `~/.config/thinksmart-client/config.json`。这个本地文件已经在 `.gitignore` 里，`git status` 不会看到它，不要把它加进提交。
 
-- `host`：摄像头地址，这台是 `192.168.31.152`
-- `onvif_port`：`80`
-- `user`、`password`：摄像头的 ONVIF 账号
-
-没有 `host` 时按钮不出现，语音工具会说没有设置摄像头。改这个文件之后要重启 `thinksmart-client` 才会读到。密码不要写进仓库。
+字段是 `host`、`onvif_port`、`user`、`password`。没有 `host` 时按钮不出现，语音工具会说没有设置摄像头。写到设备之后要重启 `thinksmart-client` 才会读到。
 
 ## 和正式更新的差别
 
